@@ -1,0 +1,6 @@
+bin
+.bin
+scripts
+node_modules/**/out
+node_modules/**/build
+/.forever
