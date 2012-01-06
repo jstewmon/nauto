@@ -7,8 +7,8 @@ app.configure(function() {
 	app.use(app.router);
 });
 
-app.get('/post-receive', function(req, res) {
-	console.log(req);
+app.post('/post-receive', function(req, res) {
+	console.log(req.body);
 	res.send(req.body);
 });
 
