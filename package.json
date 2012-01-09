@@ -1,6 +1,7 @@
 {
   "name": "nauto",
   "version": "0.0.1",
+	"description": "a post-receive / auto deployment tool"
   "dependencies": {
     "forever": "0.8.1",
     "express": "2.5.4",
