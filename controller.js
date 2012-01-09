@@ -13,17 +13,17 @@ function resolve() {
 }
 
 function loadTemplateFile(name, cb) {
-	fs.readFile(path.join(resolve('./templates'), name), function (err, data) {
-	  if (err) cb(err);
-		else cb(null, data);;
+	fs.readFile(path.join(resolve('./templates'), name), 'utf8', function (err, data) {
+		if (err) cb(err);
+		else cb(null, data);
 	});
 }
 
 // one time action to set up SMTP information
-nodemailer.SMTP = {
-    host: 'localhost'
-};
-
+// nodemailer.SMTP = {
+//     host: 'localhost'
+// };
+nodemailer.sendmail = '/usr/sbin/sendmail';
 var app = express.createServer();
 
 app.configure(function() {
@@ -32,7 +32,6 @@ app.configure(function() {
 });
 
 app.post('/post-receive', function(req, res) {
-	console.log(req.body);
 	var payload = JSON.parse(req.body.payload);
 	res.send('i parsed you');
 	
@@ -42,7 +41,11 @@ app.post('/post-receive', function(req, res) {
 		}
 		else {
 			var template = handlebars.compile(source);
-			var output = template(req.body);
+			var output = template({payload: JSON.stringify(payload, null, 2)});
+			
+			console.log('output:');
+			console.log(output);
+			
 			// send an e-mail
 			nodemailer.send_mail(
 			  // e-mail options
