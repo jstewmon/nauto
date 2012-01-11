@@ -1,0 +1,11 @@
+{
+	"production": {
+		"key": "/Users/jstewmon/.ssh/id_rsa",
+		"branch": "production",
+		"track": "origin/production",
+		"command": "ssh {{server}} 'cd nodequest; git checkout {{branch}}; git pull; make server-a_stop; make server-a_start'",
+		"servers": [
+			"nodequest.glgdev.com"
+		]
+	}
+}
