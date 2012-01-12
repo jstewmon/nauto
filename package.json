@@ -1,13 +1,13 @@
 {
   "name": "nauto",
   "version": "0.0.1",
-	"description": "a post-receive / auto deployment tool",
+  "description": "a post-receive / auto deployment tool",
   "dependencies": {
     "forever": "0.8.1",
     "express": "2.5.4",
-		"nconf": "0.5.1",
-		"nodemailer": "0.2.x",
-		"handlebars": "1.0.x",
+    "nconf": "0.5.1",
+    "nodemailer": "0.2.x",
+    "handlebars": "1.0.x",
     "async": "0.1.x"
   },
   "engines": {
