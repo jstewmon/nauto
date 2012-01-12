@@ -35,58 +35,66 @@ var config = nconf.load();
 
 // nauto --branch=origin/production --cwd=/Users/home/jstewmon/Projects/nodequest --targets=ops/targets.json
 
-var g = git.createClient(config.cwd);
+var g = new git(config.cwd);
 
-async.parallel({
+async.auto({
 	locals: async.apply(g.refs, 'refs/heads'),
-	remotes: async.apply(g.refs, 'refs/remotes')
-}, function parallelComplete(err, results) {
+	parseLocals: ['locals', function(callback, results) { g.parsers.refs(results.locals, callback); }],//async.apply(g.parsers.refs)],
+	remotes: async.apply(g.refs, 'refs/remotes'),
+	parseRemotes: ['remotes', function(callback, results) { g.parsers.refs(results.remotes, callback); }],
+	checkBranch: ['parseLocals', 'parseRemotes', function(callback, results) {
+		// console.log(results.parseLocals);
+		// console.log(results.parseRemotes);
+		ensureTrackingBranch(config.branch, results.parseLocals, results.parseRemotes, callback);
+	}]
+}, function(err, results) {
 	if(err) {
-		console.error(err.stderr);
+		console.error(err['stderr'] || err);
 		process.exit(1);
-	}
-	var localFiltered = results.locals.filter(function(ref) {
-		return ref.refname == config.branch || ref.upstream == config.branch;
-	});
-	var local = localFiltered.length === 0 ? null : localFiltered[0];
-
-	if(local && local.upstream) {
-		// TODO: exit this mess here
-	}
-
-	var remoteFiltered = local ? results.remotes.filter(function(ref) { return ref.refname == local.upstream; })
-		: results.remotes.filter(function(ref) { return ref.refname == config.branch; });
-	var remote = remoteFiltered.length === 0 ? null : remoteFiltered[0];
-
-	if(!local && !remote) {
-		console.error('%s was not found in the local or remote branches', config.branch);
-		process.exit(1);
-	}
-	if(local && !local.upstream) {
-		console.error('Local branch %s is not tracking an upstream. Try running something like git branch --set-upstream %s origin/%s', local.refname, local.refname);
-		process.exit(1);
-	}
-	if(!local) {
-		console.log('Found remote %s, but it is not tracking locally.  Creating local branch...', remote.refname);
-		async.series({
-			//pull: function(callback) { g.pull(callback); },
-			checkout: async.apply(g.checkout, remote.refname, {track: true}),// function(callback) { g.checkout(remote.refname, {track: true}, callback); }
-			locals: async.apply(g.refs, 'refs/heads')
-		}, function(err, results) {
-				if(err) {
-					console.error(err['stderr'] || err);
-					process.exit(1);
-				}
-				var local = results.locals.filter(function(ref) { return ref.upstream == config.branch; })[0];
-				// console.log(results.checkout);
-				console.log('Created %s with upstream %s', local.refname, local.upstream);
-			});
 	}
 });
 
+var ensureTrackingBranch = function(trackingBranch, locals, remotes, callback) {
+	var localFiltered = locals.filter(function(ref) {
+		return ref.refname == trackingBranch || ref.upstream == trackingBranch;
+	});
+	// is the branch we're tracking a local ref?
+	var local = localFiltered.length === 0 ? null : localFiltered[0];
 
+	if(local) {
+		return local.upstream ? callback(null, local)
+													: callback(util.format('Local branch %s is not tracking an upstream. Try running something like git branch --set-upstream %s origin/%s', local.refname, local.refname));
+	}
 
-//* deploy 998f00b tweaked gitignore. added rebuild phony to makefile
+	var remoteFiltered = remotes.filter(function(ref) { return ref.refname == trackingBranch; });
+	// is the branch we're tracking a remote ref?
+	var remote = remoteFiltered.length === 0 ? null : remoteFiltered[0];
+
+	if(!remote) {
+		return callback(util.format('%s was not found in the local or remote branches', trackingBranch));
+	}
+
+	console.log('Found remote %s, but it is not tracking locally.  Creating local branch...', remote.refname);
+	async.auto({
+		//pull: function(callback) { g.pull(callback); },
+		checkout: async.apply(g.checkout, remote.refname, {track: true}),// function(callback) { g.checkout(remote.refname, {track: true}, callback); }
+		locals: ['checkout', async.apply(g.refs, 'refs/heads')],
+		parseLocals: ['locals', function(callback, results) {
+			//console.log(results.locals);
+			g.parsers.refs(results.locals, callback);
+		}],
+		findLocal: ['parseLocals', function(callback, results) {
+			//console.log(results.parseLocals);
+			callback(null, results.parseLocals.filter(function(ref) { return ref.upstream == trackingBranch; })[0]);
+		}]
+	}, function(err, results) {
+			if(err) {
+				return callback(err);
+			}
+			console.log('Created %s with upstream %s', results.findLocal.refname, results.findLocal.upstream);
+			callback(null, results.findLocal);
+		});
+};
 
 function resolve() {
 	var args = arguments;
