@@ -35,7 +35,7 @@ var config = nconf.load();
 
 // nauto --branch=origin/production --cwd=/Users/home/jstewmon/Projects/nodequest --targets=ops/targets.json
 
-var g = new git(config.cwd);
+var g = new git(config.cwd, {log: console.log, error: console.error});
 
 async.auto({
   locals: async.apply(g.refs, 'refs/heads'),
@@ -48,18 +48,41 @@ async.auto({
     ensureTrackingBranch(config.branch, results.parseLocals, results.parseRemotes, callback);
   }],
   fetchRemote: ['checkBranch', function(callback, results) {
-    
+    g.fetch(results.checkBranch.upstream, callback);
   }],
-  logLocalRemote: ['fetchBranch', function(callback, results) {
-    
+  logLocalRemote: ['fetchRemote', function(callback, results) {
+    g.log(results.checkBranch.refname, results.checkBranch.upstream, callback);
   }],
-  mergeRemote: ['fetchRemote', function(callback, results) {
-    
+  checkoutLocal: ['fetchRemote', function(callback, results) {
+    g.checkout(results.checkBranch.refname, callback);
+  }],
+  mergeRemote: ['logLocalRemote', 'checkoutLocal', function(callback, results) {
+    g.merge(results.checkBranch.upstream, callback);
+  }],
+  deploy: ['logLocalRemote', 'mergeRemote', function(callback, results) {
+    if(!results.logLocalRemote.trim()) {
+      return callback(null, 'Nothing to deploy.');
+    }
+    var makeOptions = {
+      'environment-overrides': true
+    };
+    var makeVariables = {
+      'CLUSTER_USER': 'glgr',
+      'CLUSTER_SERVERS': ['192.168.114.47', '192.168.114.107']
+    };
+    var make = require('./lib/make.js');
+    var m = new make(config.cwd);
+    m.make('cluster_environment', makeVariables, makeOptions, callback);
   }]
 }, function(err, results) {
   if(err) {
     console.error(err['stderr'] || err);
     process.exit(1);
+  }
+  console.log('Deployment completed.  These are the tasks that were preformed and their results:');
+  for(var i in results) {
+    console.log('%s:', i);
+    console.log(results[i]);
   }
 });
 
