@@ -46,6 +46,15 @@ async.auto({
     // console.log(results.parseLocals);
     // console.log(results.parseRemotes);
     ensureTrackingBranch(config.branch, results.parseLocals, results.parseRemotes, callback);
+  }],
+  fetchRemote: ['checkBranch', function(callback, results) {
+    
+  }],
+  logLocalRemote: ['fetchBranch', function(callback, results) {
+    
+  }],
+  mergeRemote: ['fetchRemote', function(callback, results) {
+    
   }]
 }, function(err, results) {
   if(err) {
