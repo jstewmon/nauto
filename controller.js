@@ -68,16 +68,48 @@ async.auto({
     };
     var makeVariables = {
       'CLUSTER_USER': 'glgr',
-      'CLUSTER_SERVERS': ['192.168.114.47', '192.168.114.107']
+      'CLUSTER_HOSTS': ['192.168.114.115', '192.168.114.19', '192.168.114.113']
     };
     var make = require('./lib/make.js');
-    var m = new make(config.cwd);
-    m.make('cluster_environment', makeVariables, makeOptions, callback);
+    var m = new make(config.cwd, {stdout: console.log, stderr: console.error});
+    var instance_file = path.join(path.resolve(config.cwd), '.active_instance');
+    var active_instance = path.existsSync(instance_file) ? fs.readFileSync(instance_file, 'utf8') : null;
+    var target_instance = active_instance ? (active_instance == 'a' ? 'b' : 'a') : 'a';
+    async.auto({
+      environment: async.apply(m.make, 'cluster_environment', makeVariables, makeOptions),
+      //m.make('cluster_environment', makeVariables, makeOptions, callback);
+      start: ['environment', function(callback, results) {
+        m.make(util.format('cluster_start-%s', target_instance), makeVariables, makeOptions, callback);
+      }]
+    }, function(err, results) {
+      if(err) {
+        console.error(err);
+      }
+      else {
+        console.log('started %s', target_instance);
+        fs.writeFileSync(instance_file, target_instance, 'utf8');
+      }
+      //m.make(util.format('cluster_start-%s', target_instance), makeVariables, makeOptions, callback);
+    });
   }]
 }, function(err, results) {
   if(err) {
     console.error(err['stderr'] || err);
-    process.exit(1);
+    if(results.checkBranch) {
+      console.log('Resetting %s to previous head (%s)', results.checkBranch.refname, results.checkBranch.objectname);
+      g.reset(results.checkBranch.objectname, {hard: true}, function(err, stdout) {
+        if(err) {
+          console.error(err);
+        }
+        else {
+          console.log(stdout);
+        }
+        process.exit(1);
+      });
+    }
+    else {
+      process.exit(1);
+    }
   }
   console.log('Deployment completed.  These are the tasks that were preformed and their results:');
   for(var i in results) {
