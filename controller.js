@@ -1,28 +1,30 @@
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
-var exec = require('child_process').exec;
+var proc = require('procstreams');
 var async = require('async');
-var express = require('express');
 var nconf = require('nconf');
-var nodemailer = require('nodemailer');
-var handlebars = require('handlebars');
-var git = require('./lib/git.js');
 
 
 var cliOptions = {
   branch: {
     alias: 'b',
-    describe: 'The branch to check for changes.',
-    demand: true
+    demand: true,
+    describe: 'The branch to check for changes.'
   },
   cwd: {
-    describe: 'The working directory of the git repo.',
-    demand: true
+    demand: true,
+    describe: 'The working directory of the git repo.'
   },
-  targets: {
-    alias: '-t',
-    describe: 'The location of the file containing the target definition.  A relative path is rooted by cwd.'
+  environment: {
+    alias: 'e',
+    demand: true,
+    describe: 'The environment to deploy, such as production or staging.'
+  },
+  deployer: {
+    alias: 'd',
+    demand: true,
+    describe: 'The script that will be used to perform the deployment if changes are detected.'
   }
 };
 nconf.argv(cliOptions);
@@ -31,90 +33,153 @@ var targets = nconf.get('targets') ? path.resolve(nconf.get('cwd'), nconf.get('t
 nconf.add('targets', {type: 'file', file: targets});
 var config = nconf.load();
 
-//  ssh nodequest.glgdev.com 'cd nodequest; git checkout master; git pull; make server-a_stop; make server-a_start'
-
-// nauto --branch=origin/production --cwd=/Users/home/jstewmon/Projects/nodequest --targets=ops/targets.json
-
-var g = new git(config.cwd, {log: console.log, error: console.error});
-
+var wrapData = function(callback) {
+  return function(stdout, stderr) {
+    callback(null, {stdout: stdout, stderr: stderr});
+  };
+};
+var wrapError = function(callback) {
+  return function(err, stdout, stderr) {
+    callback({err: err, stdout: stdout, stderr: stderr});
+  };
+};
+parsers = {
+  refs: function(stdout, callback) {
+    var refs = [];
+    stdout.split('\n').forEach(function(ref) {
+      if(ref.trim()) {
+        refs.push(JSON.parse(ref));
+      }
+    });
+    callback(null, refs);
+  }
+};
+var gitProcOptions = {
+  cwd: config.cwd,
+  out: true
+};
 async.auto({
-  locals: async.apply(g.refs, 'refs/heads'),
-  parseLocals: ['locals', function(callback, results) { g.parsers.refs(results.locals, callback); }],//async.apply(g.parsers.refs)],
-  remotes: async.apply(g.refs, 'refs/remotes'),
-  parseRemotes: ['remotes', function(callback, results) { g.parsers.refs(results.remotes, callback); }],
+  locals: function(callback) {
+    proc('git', [
+      'for-each-ref',
+      '--format={"objectname": "%(objectname:short)", "refname": "%(refname:short)", "upstream":"%(upstream:short)"}',
+      'refs/heads'
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+  },
+  parseLocals: ['locals', function(callback, results) { parsers.refs(results.locals.stdout, callback); }],
+  remotes: function(callback) {
+    proc('git', [
+      'for-each-ref',
+      '--format={"objectname": "%(objectname:short)", "refname": "%(refname:short)", "upstream":"%(upstream:short)"}',
+      'refs/remotes'
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+  },
+  parseRemotes: ['remotes', function(callback, results) { parsers.refs(results.remotes.stdout, callback); }],
+  findHead: function(callback) {
+    proc('git', [
+      'symbolic-ref',
+      '-q',
+      'HEAD'
+    ], gitProcOptions).data(function(stdout, stderr) {
+      if(stdout) {
+        var shortname = stdout.replace(new RegExp('(refs\/heads\/)(.*)'), '$2').trim();
+        console.log(shortname);
+        callback(null, shortname);
+      }
+      else {
+        callback(null);
+      }
+    });
+  },
   checkBranch: ['parseLocals', 'parseRemotes', function(callback, results) {
-    // console.log(results.parseLocals);
-    // console.log(results.parseRemotes);
     ensureTrackingBranch(config.branch, results.parseLocals, results.parseRemotes, callback);
   }],
   fetchRemote: ['checkBranch', function(callback, results) {
-    g.fetch(results.checkBranch.upstream, callback);
+    proc('git', [
+      'fetch',
+      results.checkBranch.upstream.replace(new RegExp('(^[^/]*)(\/.*)?$'), '$1')
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   logLocalRemote: ['fetchRemote', function(callback, results) {
-    g.log(results.checkBranch.refname, results.checkBranch.upstream, callback);
+    proc('git', [
+      'log',
+      util.format('%s..%s', results.checkBranch.refname, results.checkBranch.upstream)
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
-  checkoutLocal: ['fetchRemote', function(callback, results) {
-    g.checkout(results.checkBranch.refname, callback);
+  checkoutLocal: ['findHead', 'logLocalRemote', 'fetchRemote', function(callback, results) {
+    if(results.checkBranch.refname == results.findHead) {
+      return callback(null);
+    }
+    else {
+      proc('git', [
+        'checkout',
+        results.checkBranch.refname
+      ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+    }
   }],
   mergeRemote: ['logLocalRemote', 'checkoutLocal', function(callback, results) {
-    g.merge(results.checkBranch.upstream, callback);
+    proc('git', [
+      'merge',
+      results.checkBranch.upstream
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
-  deploy: ['logLocalRemote', 'mergeRemote', function(callback, results) {
-    if(!results.logLocalRemote.trim()) {
+  deployment: ['mergeRemote', function(callback, results) {
+    if(!results.logLocalRemote.stdout.trim()) {
       return callback(null, 'Nothing to deploy.');
     }
-    var makeOptions = {
-      'environment-overrides': true
-    };
-    var makeVariables = {
-      'CLUSTER_USER': 'glgr',
-      'CLUSTER_HOSTS': ['192.168.114.115', '192.168.114.19', '192.168.114.113']
-    };
-    var make = require('./lib/make.js');
-    var m = new make(config.cwd, {stdout: console.log, stderr: console.error});
-    var instance_file = path.join(path.resolve(config.cwd), '.active_instance');
-    var active_instance = path.existsSync(instance_file) ? fs.readFileSync(instance_file, 'utf8') : null;
-    var target_instance = active_instance ? (active_instance == 'a' ? 'b' : 'a') : 'a';
+    var outerResults = results;
+    var plugin = require(config.deployer);
+    var deployer = new plugin(config.cwd, config.environment);
     async.auto({
-      environment: async.apply(m.make, 'cluster_environment', makeVariables, makeOptions),
-      //m.make('cluster_environment', makeVariables, makeOptions, callback);
-      start: ['environment', function(callback, results) {
-        m.make(util.format('cluster_start-%s', target_instance), makeVariables, makeOptions, callback);
-      }]
+      outer: function(callback) { callback(null, outerResults); },
+      deploy: ['outer', function(callback, results) { deployer.deploy(callback, results); }],
+      verify: ['deploy', function(callback, results) { deployer.verify(callback, results); }],
+      commit: ['verify', function(callback, results) { deployer.commit(callback, results); }]
     }, function(err, results) {
       if(err) {
-        console.error(err);
+        results.error = err;
+        deployer.rollback(function() { callback(err, results); }, results);
       }
       else {
-        console.log('started %s', target_instance);
-        fs.writeFileSync(instance_file, target_instance, 'utf8');
+        callback(null, results);
       }
-      //m.make(util.format('cluster_start-%s', target_instance), makeVariables, makeOptions, callback);
     });
   }]
 }, function(err, results) {
   if(err) {
-    console.error(err['stderr'] || err);
+    // console.error(err['stderr'] || err);
+    console.error(err);
     if(results.checkBranch) {
       console.log('Resetting %s to previous head (%s)', results.checkBranch.refname, results.checkBranch.objectname);
-      g.reset(results.checkBranch.objectname, {hard: true}, function(err, stdout) {
-        if(err) {
-          console.error(err);
-        }
-        else {
-          console.log(stdout);
-        }
-        process.exit(1);
+      
+      async.auto({
+        reset: function(callback) {
+          proc('git', [
+            'reset',
+            '--hard',
+            results.checkBranch.objectname
+          ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+        },
+        clean: ['reset', function(callback, results) {
+          proc('git', [
+            'clean',
+            '-df'
+          ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+        }]
+      }, function(err, results) {
+        process.exit();
       });
     }
     else {
       process.exit(1);
     }
   }
-  console.log('Deployment completed.  These are the tasks that were preformed and their results:');
-  for(var i in results) {
-    console.log('%s:', i);
-    console.log(results[i]);
+  else {
+    console.log('Deployment completed.  These are the tasks that were preformed and their results:');
+    for(var i in results) {
+      console.log('%s:', i);
+      console.log(results[i]);
+    }
   }
 });
 
@@ -140,15 +205,24 @@ var ensureTrackingBranch = function(trackingBranch, locals, remotes, callback) {
 
   console.log('Found remote %s, but it is not tracking locally.  Creating local branch...', remote.refname);
   async.auto({
-    //pull: function(callback) { g.pull(callback); },
-    checkout: async.apply(g.checkout, remote.refname, {track: true}),// function(callback) { g.checkout(remote.refname, {track: true}, callback); }
-    locals: ['checkout', async.apply(g.refs, 'refs/heads')],
+    checkout: function(callback) {
+      proc('git', [
+        'checkout',
+        '--track',
+        remote.refname
+      ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+    },
+    locals: ['checkout', function(callback, results) {
+      proc('git', [
+        'for-each-ref',
+        '--format={"objectname": "%(objectname:short)", "refname": "%(refname:short)", "upstream":"%(upstream:short)"}',
+        'refs/heads'
+      ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
+    }],
     parseLocals: ['locals', function(callback, results) {
-      //console.log(results.locals);
-      g.parsers.refs(results.locals, callback);
+      parsers.refs(results.locals.stdout, callback);
     }],
     findLocal: ['parseLocals', function(callback, results) {
-      //console.log(results.parseLocals);
       callback(null, results.parseLocals.filter(function(ref) { return ref.upstream == trackingBranch; })[0]);
     }]
   }, function(err, results) {
@@ -159,74 +233,3 @@ var ensureTrackingBranch = function(trackingBranch, locals, remotes, callback) {
       callback(null, results.findLocal);
     });
 };
-
-function resolve() {
-  var args = arguments;
-  Array.prototype.unshift.call(args, __dirname);
-  return path.resolve.apply(path, args);
-}
-
-function loadTemplateFile(name, cb) {
-  fs.readFile(path.join(resolve('./templates'), name), 'utf8', function (err, data) {
-    if (err) cb(err);
-    else cb(null, data);
-  });
-}
-
-// one time action to set up SMTP information
-// nodemailer.SMTP = {
-//     host: 'localhost'
-// };
-nodemailer.sendmail = '/usr/sbin/sendmail';
-var app = express.createServer();
-
-app.configure(function() {
-  app.use(express.bodyParser());
-  app.use(app.router);
-});
-
-app.post('/post-receive', function(req, res) {
-  var payload = JSON.parse(req.body.payload);
-  res.send('i parsed you');
-  
-  loadTemplateFile('post-receive.txt', function loadedTemplate(err, source) {
-    if(err) {
-      console.error(err);
-    }
-    else {
-      var template = handlebars.compile(source);
-      var output = template({payload: JSON.stringify(payload, null, 2)});
-      
-      console.log('output:');
-      console.log(output);
-      
-      // send an e-mail
-      nodemailer.send_mail(
-        // e-mail options
-        {
-          sender: 'jstewmon@gmail.com',
-          to:'jstewmon@glgroup.com',
-          subject:'post-receive hook called',
-          //html: '<p><b>Hi,</b> how are you doing?</p>',
-          body: output
-        },
-        // callback function
-        function(err, success) {
-          if(err) {
-            console.error('Failed to send message...');
-            console.error(err);
-          }
-          else {
-            console.log('Message sent');
-          }
-        }
-      );
-    }
-  });
-});
-
-app.get('*', function(req, res) {
-  res.send('bugger off', 500);
-});
-
-//app.listen(3111);

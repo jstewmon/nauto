@@ -1,3 +1,0 @@
-post-receive hook called
-
-{{{payload}}}
