@@ -55,7 +55,7 @@ install_app_modules:
 	$(WITH_NODE) npm prune; npm install
 
 rebuild_app_modules:
-	$(WITH_NODE) cd src; npm rebuild
+	$(WITH_NODE) npm rebuild
 
 setup_remote:
 	scp $(REMOTE_SCRIPT) $(REMOTE):nauto_setup.sh
@@ -66,4 +66,4 @@ update_remote:
 	ssh $(REMOTE) 'cd /var/nauto && git pull origin && make --environment-overrides environment'
 
 deployment:
-	node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -e $(ENVIRONMENT) -d $(DEPLOY_SCRIPT) -o 
+	$(WITH_NODE) node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -e $(ENVIRONMENT) -d $(DEPLOY_SCRIPT) -o 
