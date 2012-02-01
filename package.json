@@ -2,6 +2,7 @@
   "name": "nauto",
   "version": "0.0.1",
   "description": "a post-receive / auto deployment tool",
+  "bin": "controller.js",
   "dependencies": {
     "nconf": "0.5.1",
     "async": "git://github.com/jstewmon/async.git",

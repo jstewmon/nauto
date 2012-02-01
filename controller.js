@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var fs = require('fs');
 var path = require('path');
 var util = require('util');
@@ -25,6 +27,10 @@ var cliOptions = {
     alias: 'd',
     demand: true,
     describe: 'The script that will be used to perform the deployment if changes are detected.'
+  },
+  'show-output': {
+    alias: 'o',
+    describe: 'Causes output of child processes to be piped to stdout'
   }
 };
 nconf.argv(cliOptions);
@@ -32,6 +38,9 @@ nconf.env();
 var targets = nconf.get('targets') ? path.resolve(nconf.get('cwd'), nconf.get('targets')) : path.join(__dirname, 'targets.json');
 nconf.add('targets', {type: 'file', file: targets});
 var config = nconf.load();
+
+process.chdir(config.cwd);
+console.log(process.cwd());
 
 var wrapData = function(callback) {
   return function(stdout, stderr) {
@@ -54,9 +63,9 @@ parsers = {
     callback(null, refs);
   }
 };
+//console.log('output?:', config['show-output'] === true);
 var gitProcOptions = {
-  cwd: config.cwd,
-  out: true
+  out: config['show-output']
 };
 async.auto({
   locals: function(callback) {
@@ -83,11 +92,10 @@ async.auto({
     ], gitProcOptions).data(function(stdout, stderr) {
       if(stdout) {
         var shortname = stdout.replace(new RegExp('(refs\/heads\/)(.*)'), '$2').trim();
-        console.log(shortname);
         callback(null, shortname);
       }
       else {
-        callback(null);
+        callback('Failed to find HEAD');
       }
     });
   },
@@ -107,15 +115,10 @@ async.auto({
     ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   checkoutLocal: ['findHead', 'logLocalRemote', 'fetchRemote', function(callback, results) {
-    if(results.checkBranch.refname == results.findHead) {
-      return callback(null);
-    }
-    else {
-      proc('git', [
-        'checkout',
-        results.checkBranch.refname
-      ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
-    }
+    proc('git', [
+      'checkout',
+      results.checkBranch.refname
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   mergeRemote: ['logLocalRemote', 'checkoutLocal', function(callback, results) {
     proc('git', [
@@ -127,9 +130,10 @@ async.auto({
     if(!results.logLocalRemote.stdout.trim()) {
       return callback(null, 'Nothing to deploy.');
     }
+    console.log('Proceding with deployment');
     var outerResults = results;
-    var plugin = require(config.deployer);
-    var deployer = new plugin(config.cwd, config.environment);
+    var plugin = require(path.join(path.resolve(config.cwd), config.deployer));
+    var deployer = new plugin(config.environment);
     async.auto({
       outer: function(callback) { callback(null, outerResults); },
       deploy: ['outer', function(callback, results) { deployer.deploy(callback, results); }],
@@ -147,7 +151,6 @@ async.auto({
   }]
 }, function(err, results) {
   if(err) {
-    // console.error(err['stderr'] || err);
     console.error(err);
     if(results.checkBranch) {
       console.log('Resetting %s to previous head (%s)', results.checkBranch.refname, results.checkBranch.objectname);

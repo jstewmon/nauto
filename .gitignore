@@ -4,3 +4,5 @@ scripts
 node_modules/**/out
 node_modules/**/build
 /.forever
+/watch
+/packages
