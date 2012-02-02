@@ -31,6 +31,10 @@ var cliOptions = {
   'show-output': {
     alias: 'o',
     describe: 'Causes output of child processes to be piped to stdout'
+  },
+  force: {
+    alias: 'f',
+    describe: 'Force deployment, even if there are no changes to the local repo.'
   }
 };
 nconf.argv(cliOptions);
@@ -126,7 +130,7 @@ async.auto({
     ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   deployment: ['mergeRemote', function(callback, results) {
-    if(!results.logLocalRemote.stdout.trim()) {
+    if(!results.logLocalRemote.stdout.trim() && !config.force) {
       return callback(null, 'Nothing to deploy.');
     }
     console.log('Proceding with deployment');
