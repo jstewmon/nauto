@@ -65,5 +65,5 @@ setup_remote:
 update_remote:
 	ssh $(REMOTE) 'cd /var/nauto && git pull origin && make --environment-overrides environment'
 
-deployment:
+deploy:
 	$(WITH_NODE) node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -e $(ENVIRONMENT) -d $(DEPLOY_SCRIPT) -o 
