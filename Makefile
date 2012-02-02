@@ -1,4 +1,5 @@
 CWD := $(shell pwd)
+BIN = $(CWD)/bin
 SSH_USER = $(shell whoami)
 NODE = $(CWD)/bin/node
 
@@ -66,4 +67,4 @@ update_remote:
 	ssh $(REMOTE) 'cd /var/nauto && git pull origin && make --environment-overrides environment'
 
 deploy:
-	$(WITH_NODE) node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -e $(ENVIRONMENT) -d $(DEPLOY_SCRIPT) -o 
+	$(WITH_NODE) node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -d $(DEPLOY_SCRIPT) -o 

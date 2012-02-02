@@ -35,8 +35,6 @@ var cliOptions = {
 };
 nconf.argv(cliOptions);
 nconf.env();
-var targets = nconf.get('targets') ? path.resolve(nconf.get('cwd'), nconf.get('targets')) : path.join(__dirname, 'targets.json');
-nconf.add('targets', {type: 'file', file: targets});
 var config = nconf.load();
 
 process.chdir(config.cwd);
@@ -133,7 +131,7 @@ async.auto({
     console.log('Proceding with deployment');
     var outerResults = results;
     var plugin = require(path.join(path.resolve(config.cwd), config.deployer));
-    var deployer = new plugin(config.environment);
+    var deployer = new plugin(config.environment || config.NODE_ENV);
     async.auto({
       outer: function(callback) { callback(null, outerResults); },
       deploy: ['outer', function(callback, results) { deployer.deploy(callback, results); }],
