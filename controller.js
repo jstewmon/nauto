@@ -20,8 +20,8 @@ var cliOptions = {
   },
   environment: {
     alias: 'e',
-    demand: true,
-    describe: 'The environment to deploy, such as production or staging.'
+    demand: false,
+    describe: 'The environment to deploy, such as production or staging. Defaults to $NODE_ENV'
   },
   deployer: {
     alias: 'd',
@@ -35,6 +35,7 @@ var cliOptions = {
 };
 nconf.argv(cliOptions);
 nconf.env();
+nconf.defaults({environment: nconf.get('NODE_ENV')});
 var config = nconf.load();
 
 process.chdir(config.cwd);
