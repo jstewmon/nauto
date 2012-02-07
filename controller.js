@@ -113,7 +113,7 @@ async.auto({
       'config',
       '--get',
       util.format('remote.%s.url', results.remoteName)
-    ], gitProcOptions).cata(wrapData(callback)).error(wrapError(callback));
+    ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   fetchRemote: ['remoteName', function(callback, results) {
     proc('git', [
