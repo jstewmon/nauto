@@ -139,7 +139,7 @@ async.auto({
       results.checkBranch.upstream
     ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
-  deployment: ['mergeRemote', function(callback, results) {
+  deployment: ['remoteUrl', 'mergeRemote', function(callback, results) {
     if(!results.logLocalRemote.stdout.trim() && !config.force) {
       return callback(null, 'Nothing to deploy.');
     }
