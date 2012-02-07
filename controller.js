@@ -105,10 +105,20 @@ async.auto({
   checkBranch: ['parseLocals', 'parseRemotes', function(callback, results) {
     ensureTrackingBranch(config.branch, results.parseLocals, results.parseRemotes, callback);
   }],
-  fetchRemote: ['checkBranch', function(callback, results) {
+  remoteName: ['checkBranch', function(callback, results) {
+    callback(null, results.checkBranch.upstream.replace(new RegExp('(^[^/]*)(\/.*)?$'), '$1'));
+  }],
+  remoteUrl: ['remoteName', function(callback, results) {
+    proc('git', [
+      'config',
+      '--get',
+      util.format('remote.%s.url', results.remoteName)
+    ], gitProcOptions).cata(wrapData(callback)).error(wrapError(callback));
+  }],
+  fetchRemote: ['remoteName', function(callback, results) {
     proc('git', [
       'fetch',
-      results.checkBranch.upstream.replace(new RegExp('(^[^/]*)(\/.*)?$'), '$1')
+      results.remoteName
     ], gitProcOptions).data(wrapData(callback)).error(wrapError(callback));
   }],
   logLocalRemote: ['fetchRemote', function(callback, results) {
