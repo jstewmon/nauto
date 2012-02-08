@@ -145,22 +145,36 @@ async.auto({
     }
     console.log('Proceding with deployment');
     var outerResults = results;
-    var plugin = require(path.join(path.resolve(config.cwd), config.deployer));
-    var deployer = new plugin(config.environment || config.NODE_ENV);
-    async.auto({
-      outer: function(callback) { callback(null, outerResults); },
-      deploy: ['outer', function(callback, results) { deployer.deploy(callback, results); }],
-      verify: ['deploy', function(callback, results) { deployer.verify(callback, results); }],
-      commit: ['verify', function(callback, results) { deployer.commit(callback, results); }]
-    }, function(err, results) {
-      if(err) {
-        results.error = err;
-        deployer.rollback(function() { callback(err, results); }, results);
-      }
-      else {
-        callback(null, results);
-      }
-    });
+    try {
+      var plugin = require(path.join(path.resolve(config.cwd), config.deployer));
+      var deployer = new plugin(config.environment || config.NODE_ENV);
+      async.auto({
+        outer: function(callback) { callback(null, outerResults); },
+        deploy: ['outer', function(callback, results) { deployer.deploy(callback, results); }],
+        verify: ['deploy', function(callback, results) { deployer.verify(callback, results); }],
+        commit: ['verify', function(callback, results) { deployer.commit(callback, results); }]
+      }, function(err, results) {
+        if(err) {
+          results.error = err;
+          try {
+            deployer.rollback(function() { callback(err, results); }, results);
+          }
+          catch(rollbackError) {
+            console.error('Error executing rollback:');
+            console.error(rollbackError);
+            callback(err, results);
+          }
+        }
+        else {
+          callback(null, results);
+        }
+      });
+    }
+    catch(error) {
+      console.error('Error executing deployment:');
+      console.error(error);
+      callback(error);
+    }
   }]
 }, function(err, results) {
   if(err) {
