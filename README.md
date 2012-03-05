@@ -14,7 +14,7 @@ Remote Installation
 -------------------
 `SSH_USER=<sudo_user> REMOTE=<remote_host> make setup_remote --environment-overrides`
 
-Additionally, you may also speicfy `NAUTO_USER` and `NAUTO_DIR` to control the settings used on the remote host.
+Additionally, you may also speicfy `NAUTO_USER` and `NAUTO_DIR` to control the settings used on the remote host. The defaults are `nauto` and `/var/nauto`, respectively.
 
 Remote Update
 -------------
