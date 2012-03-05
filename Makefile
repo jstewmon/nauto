@@ -1,7 +1,7 @@
 CWD := $(shell pwd)
 BIN = $(CWD)/bin
 SSH_USER = $(shell whoami)
-$SSH_OPTS = -o UserKnownHostsFile=/dev/null \
+SSH_OPTS = -o UserKnownHostsFile=/dev/null \
 						-o StrictHostKeyChecking=no \
 						-o ConnectTimeout=5
 NODE = $(CWD)/bin/node
