@@ -28,11 +28,12 @@ REMOTE_SCRIPT = $(CWD)/deployment/ubuntu.sh
 
 environment:
 	$(MAKE) --environment-overrides update_node
+	$(MAKE) install_app_modules
 	if [ ! -d $(CWD)/watch ]; then mkdir $(CWD)/watch; fi;
 
 install_node:
 	cd packages/node; ./configure --prefix=$(CWD); $(MAKE); $(MAKE) -j install
-	$(MAKE) --environment-overrides rebuild_app_modules
+	$(MAKE) --environment-overrides install_app_modules rebuild_app_modules
 
 update_node:
 	# if clone is ok, checkout node_v and make install_node
