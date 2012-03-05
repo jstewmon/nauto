@@ -1,6 +1,9 @@
 CWD := $(shell pwd)
 BIN = $(CWD)/bin
 SSH_USER = $(shell whoami)
+$SSH_OPTS = -o UserKnownHostsFile=/dev/null \
+						-o StrictHostKeyChecking=no \
+						-o ConnectTimeout=5
 NODE = $(CWD)/bin/node
 
 NAUTO_USER = nauto
@@ -59,12 +62,12 @@ rebuild_app_modules:
 	$(WITH_NODE) npm rebuild
 
 setup_remote:
-	scp $(REMOTE_SCRIPT) $(REMOTE):nauto_setup.sh
-	ssh -t $(REMOTE) \
+	scp $(SSH_OPTS) $(REMOTE_SCRIPT) $(SSH_USER)@$(REMOTE):nauto_setup.sh
+	ssh $(SSH_OPTS) -t $(SSH_USER)@$(REMOTE) \
 		"chmod +x ./nauto_setup.sh && sudo NAUTO_USER=$(NAUTO_USER) NAUTO_DIR=$(NAUTO_DIR) ./nauto_setup.sh && git clone $(GIT_URL) $(NAUTO_DIR); cd $(NAUTO_DIR) && make --environment-overrides environment"
 
 update_remote:
-	ssh $(REMOTE) 'cd /var/nauto && git pull origin && make --environment-overrides environment'
+	ssh $(SSH_OPTS) $(SSH_USER)@$(REMOTE) 'cd /var/nauto && git pull origin && make --environment-overrides environment'
 
 deploy:
 	$(WITH_NODE) node $(CWD)/controller.js -b $(BRANCH) --cwd=$(REPO_DIR) -d $(DEPLOY_SCRIPT) -o 

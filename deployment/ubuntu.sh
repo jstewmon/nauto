@@ -6,7 +6,7 @@
 # Settings
 #----------------------------------------------------------
 if [ "$NAUTO_USER" = '' ]; then echo "Assigning NAUTO_USER=nauto"; NAUTO_USER=nauto; fi;
-if [ "$NAUTO_GROUP" = '' ]; then echo "Assigning NAUTO_GROUP=nogroup"; NAUTO_GROUP=GLGDEV\domain^admins; fi;
+if [ "$NAUTO_GROUP" = '' ]; then echo "Assigning NAUTO_GROUP=nogroup"; NAUTO_GROUP=nogroup; fi;
 if [ "$NAUTO_DIR" = '' ]; then echo "Assigning NAUTO_DIR=/var/nauto"; NAUTO_DIR=/var/$NAUTO_USER; fi;
 
     
