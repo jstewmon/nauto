@@ -7,8 +7,6 @@ build-essential
 curl
 git-core
 
-nauto and its 
-
 nauto depends on node.  to ensure the a compatible version of node is available, node will be installed when nauto is setup. 
 `make install_node`
 
@@ -29,7 +27,7 @@ Setting up a deployment
 1.  Clone the repo containing the project.
     
     `git clone git://github...`
-    
+
 2.  Edit crontab to run controller.
     
     `crontab -e`
