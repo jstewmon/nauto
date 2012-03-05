@@ -26,8 +26,8 @@ When an update is available on github, it can be deployed by running the followi
 
 Setting up a deployment
 -----------------------
-1. Clone the repo containing the project.
-> `git clone git://github...`
-2. Edit crontab to run controller.
-> `crontab -e`
-> */5 * * * * root cd /var/nauto && export PATH=/var/nauto/bin:$PATH; export NODE_ENV=integration; node controller.js -b origin/master --cwd=/var/nauto/watch/myrepo -d ./deployment/deployer.js 2>&1 >> /var/log/cron_nauto.log
+1.  Clone the repo containing the project.
+    `git clone git://github...`
+2.  Edit crontab to run controller.
+    `crontab -e`
+    */5 * * * * root cd /var/nauto && export PATH=/var/nauto/bin:$PATH; export NODE_ENV=integration; node controller.js -b origin/master --cwd=/var/nauto/watch/myrepo -d ./deployment/deployer.js 2>&1 >> /var/log/cron_nauto.log
