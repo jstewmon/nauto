@@ -26,7 +26,7 @@ var cliOptions = {
   deployer: {
     alias: 'd',
     demand: true,
-    describe: 'The script that will be used to perform the deployment if changes are detected.'
+    describe: 'The script in cwd that will be used to perform the deployment if changes are detected.'
   },
   'show-output': {
     alias: 'o',
@@ -66,10 +66,11 @@ parsers = {
     callback(null, refs);
   }
 };
-//console.log('output?:', config['show-output'] === true);
+
 var gitProcOptions = {
   out: config['show-output']
 };
+
 async.auto({
   locals: function(callback) {
     proc('git', [
