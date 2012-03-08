@@ -1,4 +1,4 @@
-bin
+/bin
 .bin
 scripts
 node_modules/**/out
