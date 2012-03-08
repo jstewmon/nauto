@@ -7,8 +7,13 @@ build-essential
 curl
 git-core
 
-nauto depends on node.  to ensure the a compatible version of node is available, node will be installed when nauto is setup. 
-`make install_node`
+nauto depends on node.  to ensure the a compatible version of node is available, node will be installed when nauto is setup.
+
+Local Installation
+------------------
+`git clone git://github.com/jstewmon/nauto.git`
+`cd nauto/deployment; sudo ./ubuntu.sh; cd ..; make environment`
+
 
 Remote Installation
 -------------------
